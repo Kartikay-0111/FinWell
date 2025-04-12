@@ -405,7 +405,7 @@ const Transactions = () => {
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {CATEGORIES.map((category) => (
                     <SelectItem key={category} value={category}>
                       {category}
