@@ -61,7 +61,7 @@ const SummaryCard = ({
   return (
     <Card className="fin-card">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-finLightGray">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-white">{title}</CardTitle>
         <div className="bg-finOrange/10 p-2 rounded-full">{icon}</div>
       </CardHeader>
       <CardContent>
