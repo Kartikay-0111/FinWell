@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -34,7 +35,7 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasSalary, setHasSalary] = useState<boolean | null>(null);
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,17 +43,17 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       setIsAuthenticated(!!data.session);
 
       if (data.session) {
-        // Check if user has provided salary info
+        // Check if user has provided profile info
         const { data: userData, error } = await supabase
           .from('users')
-          .select('income')
+          .select('name, income')
           .eq('id', data.session.user.id)
           .maybeSingle();
 
-        if (!error && userData && userData.income) {
-          setHasSalary(true);
+        if (!error && userData && userData.name && userData.income) {
+          setHasProfile(true);
         } else {
-          setHasSalary(false);
+          setHasProfile(false);
         }
       }
 
@@ -72,7 +73,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" />;
   }
 
-  if (isAuthenticated && hasSalary === false) {
+  if (isAuthenticated && hasProfile === false) {
     return <SalaryForm />;
   }
 

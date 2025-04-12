@@ -18,8 +18,29 @@ import {
   Legend
 } from "recharts";
 import { ArrowDown, ArrowUp, Banknote, Calendar, CreditCard, Landmark, AlertTriangle } from "lucide-react";
-import { mockDataService, Transaction } from "@/services/mockData";
-import { formatCurrency } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+type Transaction = {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: string;
+  category: string | null;
+  transaction_date: string;
+  created_at: string;
+  receiver_id: string | null;
+  notes?: string;
+};
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
 // Component for summary metrics
 const SummaryCard = ({ 
@@ -69,18 +90,22 @@ const TransactionCard = ({ transaction }: { transaction: Transaction }) => {
   const isCredit = transaction.type === "credit";
   
   // Get the icon based on recipient
-  const getIcon = (recipient: string) => {
-    if (recipient.includes("swiggy") || recipient.includes("zomato")) {
+  const getIcon = (recipient: string | null) => {
+    if (!recipient) return "💸";
+    
+    recipient = recipient.toLowerCase();
+    
+    if (recipient.includes("food") || recipient.includes("groceries")) {
       return "🍔";
-    } else if (recipient.includes("amazon") || recipient.includes("flipkart")) {
+    } else if (recipient.includes("amazon") || recipient.includes("shopping")) {
       return "🛒";
-    } else if (recipient.includes("netflix") || recipient.includes("prime")) {
+    } else if (recipient.includes("netflix") || recipient.includes("entertainment")) {
       return "📺";
-    } else if (recipient.includes("uber") || recipient.includes("ola")) {
+    } else if (recipient.includes("uber") || recipient.includes("transport")) {
       return "🚗";
-    } else if (recipient.includes("salary")) {
+    } else if (recipient.includes("salary") || recipient.includes("income")) {
       return "💼";
-    } else if (recipient.includes("rent")) {
+    } else if (recipient.includes("rent") || recipient.includes("housing")) {
       return "🏠";
     } else {
       return "💸";
@@ -88,28 +113,30 @@ const TransactionCard = ({ transaction }: { transaction: Transaction }) => {
   };
   
   // Determine if transaction is a subscription
-  const isSubscription = transaction.recipient.includes("netflix") || 
-                         transaction.recipient.includes("prime") ||
-                         transaction.recipient.includes("spotify");
+  const isSubscription = transaction.receiver_id?.toLowerCase().includes("netflix") || 
+                        transaction.receiver_id?.toLowerCase().includes("spotify") ||
+                        transaction.category?.toLowerCase() === "subscriptions";
   
-  // Determine if transaction is a large spend (more than 5000)
-  const isLargeSpend = transaction.amount > 5000;
+  // Determine if transaction is a large spend (more than 500)
+  const isLargeSpend = transaction.amount > 500;
   
   // Determine if transaction is an anomaly (random for demo)
-  const isAnomaly = transaction.recipient.includes("amazon") && transaction.amount > 1000;
+  const isAnomaly = transaction.amount > 1000 && transaction.type === "debit";
   
   return (
     <div className="p-4 border-b border-finDarkBlue last:border-0 hover:bg-finDarkBlue/30 transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex items-start">
           <div className="w-10 h-10 rounded-full bg-finOrange/10 flex items-center justify-center text-xl mr-3">
-            {getIcon(transaction.recipient)}
+            {getIcon(transaction.receiver_id || transaction.category || "")}
           </div>
           <div>
             <p className="font-medium">
-              {transaction.recipient.split('@')[0].charAt(0).toUpperCase() + transaction.recipient.split('@')[0].slice(1)}
+              {transaction.receiver_id ? 
+                (transaction.receiver_id.split('@')[0].charAt(0).toUpperCase() + transaction.receiver_id.split('@')[0].slice(1)) :
+                (transaction.category || "Unknown")}
             </p>
-            <p className="text-xs text-finLightGray">{new Date(transaction.date).toLocaleDateString()}</p>
+            <p className="text-xs text-finLightGray">{new Date(transaction.transaction_date).toLocaleDateString()}</p>
           </div>
         </div>
         <div className="text-right">
@@ -144,21 +171,61 @@ const Dashboard = () => {
   const [incomeTotal, setIncomeTotal] = useState(0);
   const [expenseTotal, setExpenseTotal] = useState(0);
   const [savingsTotal, setSavingsTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { toast } = useToast();
   
   useEffect(() => {
-    // Fetch transactions
-    const data = mockDataService.getTransactions();
-    setTransactions(data);
-    
-    // Calculate totals
-    const income = data.filter(t => t.type === "credit").reduce((sum, t) => sum + t.amount, 0);
-    const expenses = data.filter(t => t.type === "debit").reduce((sum, t) => sum + t.amount, 0);
-    const savings = income - expenses;
-    
-    setIncomeTotal(income);
-    setExpenseTotal(expenses);
-    setSavingsTotal(savings);
+    fetchTransactions();
   }, []);
+  
+  const fetchTransactions = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get current date and date from 30 days ago
+      const today = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      
+      // Format dates for Supabase query
+      const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
+      const toDate = today.toISOString().split('T')[0];
+      
+      // Fetch transactions for the last 30 days
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .gte('transaction_date', fromDate)
+        .lte('transaction_date', toDate)
+        .order('transaction_date', { ascending: false });
+        
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        setTransactions(data);
+        
+        // Calculate totals
+        const income = data.filter(t => t.type === "credit").reduce((sum, t) => sum + t.amount, 0);
+        const expenses = data.filter(t => t.type === "debit").reduce((sum, t) => sum + t.amount, 0);
+        const savings = income - expenses;
+        
+        setIncomeTotal(income);
+        setExpenseTotal(expenses);
+        setSavingsTotal(savings);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error fetching transactions",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Prepare data for pie chart - spending by category
   const categoryData = transactions
@@ -178,7 +245,7 @@ const Dashboard = () => {
   transactions
     .filter(t => t.type === "debit")
     .forEach(t => {
-      const date = t.date;
+      const date = t.transaction_date;
       dateMap.set(date, (dateMap.get(date) || 0) + t.amount);
     });
     
@@ -199,119 +266,147 @@ const Dashboard = () => {
         <p className="text-finLightGray">Welcome back! Here's your financial overview.</p>
       </div>
       
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <SummaryCard 
-          title="Total Income" 
-          value={incomeTotal} 
-          delta={12} 
-          icon={<Banknote className="h-5 w-5 text-finOrange" />}
-          description="vs last month"
-        />
-        <SummaryCard 
-          title="Total Expenses" 
-          value={expenseTotal} 
-          delta={-8} 
-          icon={<CreditCard className="h-5 w-5 text-finOrange" />}
-          description="vs last month"
-        />
-        <SummaryCard 
-          title="Total Savings" 
-          value={savingsTotal} 
-          delta={23} 
-          icon={<Landmark className="h-5 w-5 text-finOrange" />}
-          description="vs last month"
-        />
-      </div>
-      
-      {/* Charts and Timeline */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Charts Section */}
-        <Tabs defaultValue="pie" className="fin-card p-4">
-          <TabsList className="bg-finDarkBlue border border-finLightGray/20 mb-4">
-            <TabsTrigger value="pie">Spending by Category</TabsTrigger>
-            <TabsTrigger value="line">Daily Spend Trend</TabsTrigger>
-          </TabsList>
+      {isLoading ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin h-8 w-8 border-4 border-finOrange border-t-transparent rounded-full" />
+        </div>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <SummaryCard 
+              title="Total Income" 
+              value={incomeTotal} 
+              delta={12} 
+              icon={<Banknote className="h-5 w-5 text-finOrange" />}
+              description="Last 30 days"
+            />
+            <SummaryCard 
+              title="Total Expenses" 
+              value={expenseTotal} 
+              delta={-8} 
+              icon={<CreditCard className="h-5 w-5 text-finOrange" />}
+              description="Last 30 days"
+            />
+            <SummaryCard 
+              title="Total Savings" 
+              value={savingsTotal} 
+              delta={23} 
+              icon={<Landmark className="h-5 w-5 text-finOrange" />}
+              description="Last 30 days"
+            />
+          </div>
           
-          <TabsContent value="pie" className="mt-0">
-            <h2 className="text-lg font-medium mb-4">Spending by Category</h2>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: '#14213D', borderColor: '#FCA311' }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="line" className="mt-0">
-            <h2 className="text-lg font-medium mb-4">Daily Spend Trend</h2>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={lineChartData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2A3A5C" />
-                  <XAxis dataKey="date" stroke="#E5E5E5" />
-                  <YAxis stroke="#E5E5E5" />
-                  <Tooltip 
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: '#14213D', borderColor: '#FCA311' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="amount"
-                    stroke="#FCA311"
-                    strokeWidth={2}
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </TabsContent>
-        </Tabs>
-        
-        {/* Transactions Timeline */}
-        <Card className="fin-card">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle>Recent Transactions</CardTitle>
-              <Badge className="bg-finOrange text-finDarkBlue hover:bg-finOrange/80">
-                <Calendar className="h-3 w-3 mr-1" /> Last 7 days
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[350px]">
-              {transactions
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .slice(0, 10)
-                .map((transaction) => (
-                  <TransactionCard key={transaction.id} transaction={transaction} />
-                ))}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Charts and Timeline */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Charts Section */}
+            <Tabs defaultValue="pie" className="fin-card p-4">
+              <TabsList className="bg-finDarkBlue border border-finLightGray/20 mb-4">
+                <TabsTrigger value="pie">Spending by Category</TabsTrigger>
+                <TabsTrigger value="line">Daily Spend Trend</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="pie" className="mt-0">
+                <h2 className="text-lg font-medium mb-4">Spending by Category</h2>
+                {categoryData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-finLightGray">
+                    <p>No category data available</p>
+                    <p className="text-sm mt-2">Try adding some transactions with categories</p>
+                  </div>
+                ) : (
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {categoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number) => formatCurrency(value)}
+                          contentStyle={{ backgroundColor: '#14213D', borderColor: '#FCA311' }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="line" className="mt-0">
+                <h2 className="text-lg font-medium mb-4">Daily Spend Trend</h2>
+                {lineChartData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-finLightGray">
+                    <p>No spending trend data available</p>
+                    <p className="text-sm mt-2">Add more transactions to see your spending trend</p>
+                  </div>
+                ) : (
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={lineChartData}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2A3A5C" />
+                        <XAxis dataKey="date" stroke="#E5E5E5" />
+                        <YAxis stroke="#E5E5E5" />
+                        <Tooltip 
+                          formatter={(value: number) => formatCurrency(value)}
+                          contentStyle={{ backgroundColor: '#14213D', borderColor: '#FCA311' }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="amount"
+                          stroke="#FCA311"
+                          strokeWidth={2}
+                          activeDot={{ r: 8 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+            
+            {/* Transactions Timeline */}
+            <Card className="fin-card">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Recent Transactions</CardTitle>
+                  <Badge className="bg-finOrange text-finDarkBlue hover:bg-finOrange/80">
+                    <Calendar className="h-3 w-3 mr-1" /> Last 30 days
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[350px]">
+                  {transactions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-finLightGray p-6">
+                      <p>No transactions found</p>
+                      <p className="text-sm mt-2">Add some transactions to see them here</p>
+                    </div>
+                  ) : (
+                    transactions
+                      .slice(0, 10)
+                      .map((transaction) => (
+                        <TransactionCard key={transaction.id} transaction={transaction} />
+                      ))
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 };

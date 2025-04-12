@@ -5,6 +5,12 @@ import { User, Session } from '@supabase/supabase-js'
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 
+type UserProfile = {
+  name: string;
+  dob: string | null;
+  income: number;
+};
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -155,8 +161,8 @@ export function useAuth() {
     }
   }
 
-  // Function to update user's salary
-  const updateSalary = async (salary: number) => {
+  // Function to update user's profile information
+  const updateUserProfile = async (profile: UserProfile) => {
     if (!user) return { error: new Error('User not authenticated') };
     
     try {
@@ -181,19 +187,28 @@ export function useAuth() {
       if (existingUser) {
         operation = supabase
           .from('users')
-          .update({ income: salary })
+          .update({
+            name: profile.name,
+            dob: profile.dob,
+            income: profile.income
+          })
           .eq('id', user.id);
       } else {
         operation = supabase
           .from('users')
-          .insert([{ id: user.id, income: salary }]);
+          .insert([{ 
+            id: user.id, 
+            name: profile.name,
+            dob: profile.dob,
+            income: profile.income
+          }]);
       }
       
       const { error: updateError } = await operation;
       
       if (updateError) {
         toast({
-          title: "Failed to update salary",
+          title: "Failed to update profile",
           description: updateError.message,
           variant: "destructive",
         });
@@ -201,14 +216,14 @@ export function useAuth() {
       }
       
       toast({
-        title: "Salary updated",
-        description: "Your salary information has been saved.",
+        title: "Profile updated",
+        description: "Your profile information has been saved.",
       });
       
       return { error: null };
     } catch (error: any) {
       toast({
-        title: "Failed to update salary",
+        title: "Failed to update profile",
         description: error.message,
         variant: "destructive",
       });
@@ -224,6 +239,6 @@ export function useAuth() {
     signInWithGoogle,
     signUp,
     signOut,
-    updateSalary
+    updateUserProfile
   }
 }
