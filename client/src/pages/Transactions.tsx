@@ -90,24 +90,46 @@ const formatCurrency = (amount: number): string => {
   }).format(amount);
 };
 
-// Schema for transaction form validation
-const transactionSchema = z.object({
-  amount: z.coerce.number().positive("Amount must be positive"),
-  type: z.string().min(1, "Transaction type is required"),
-  category: z.string().min(1, "Category is required"),
-  transaction_date: z.string().min(1, "Date is required"),
-  receiver_id: z.string().optional(),
-  notes: z.string().optional(),
-});
-
 const Transactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [uploadStatus, setUploadStatus] = useState('')
+  const [uploadResponse, setUploadResponse] = useState(null)
+
+  const addPdf = async () => {
+    if (!pdfFile) {
+      setUploadStatus('Please select a PDF file.')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('pdf_file', pdfFile)
+
+    try {
+      const response = await fetch('https://d475-103-104-226-58.ngrok-free.app/upload_pdf', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setUploadStatus('Upload successful!')
+        setUploadResponse(data)
+        setIsAddDialogOpen(false)
+      } else {
+        setUploadStatus(`Upload failed: ${data.error || 'An error occurred.'}`)
+        setUploadResponse(data)
+      }
+    } catch (error: any) {
+      setUploadStatus(`Upload failed: ${error.message}`)
+      setUploadResponse({ error: error.message })
+    }
+  }
   // Filter states
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
     start: "",
@@ -121,19 +143,6 @@ const Transactions = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   
   const { toast } = useToast();
-
-  // Form for adding new transactions
-  const addForm = useForm<z.infer<typeof transactionSchema>>({
-    resolver: zodResolver(transactionSchema),
-    defaultValues: {
-      amount: 0,
-      type: "debit",
-      category: "",
-      transaction_date: new Date().toISOString().split('T')[0],
-      receiver_id: "",
-      notes: "",
-    },
-  });
 
   useEffect(() => {
     fetchTransactions();
@@ -224,94 +233,7 @@ const Transactions = () => {
     setFilteredTransactions(transactions);
   };
 
-  // Handle transaction update
-  const handleTransactionUpdate = async () => {
-    if (!selectedTransaction) return;
-    
-    try {
-      const { error } = await supabase
-        .from('transactions')
-        .update({
-          category: selectedTransaction.category,
-          notes: selectedTransaction.notes,
-        })
-        .eq('id', selectedTransaction.id);
-        
-      if (error) {
-        throw error;
-      }
-      
-      // Update local state
-      setTransactions(
-        transactions.map((t) =>
-          t.id === selectedTransaction.id ? selectedTransaction : t
-        )
-      );
-      
-      setFilteredTransactions(
-        filteredTransactions.map((t) =>
-          t.id === selectedTransaction.id ? selectedTransaction : t
-        )
-      );
-      
-      setIsEditDialogOpen(false);
-      
-      toast({
-        title: "Transaction updated",
-        description: "The transaction has been successfully updated.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error updating transaction",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-  
-  // Handle adding new transaction
-  const onAddTransaction = async (values: z.infer<typeof transactionSchema>) => {
-    try {
-      const newTransaction = {
-        amount: values.amount,
-        type: values.type,
-        category: values.category,
-        transaction_date: values.transaction_date,
-        receiver_id: values.receiver_id || `${values.category.toLowerCase()}@example.com`,
-        is_manual: true,
-      };
-      
-      const { error, data } = await supabase
-        .from('transactions')
-        .insert([newTransaction])
-        .select();
-        
-      if (error) {
-        throw error;
-      }
-      
-      toast({
-        title: "Transaction added",
-        description: "The transaction has been successfully added.",
-      });
-      
-      // Reset form
-      addForm.reset();
-      
-      // Close dialog
-      setIsAddDialogOpen(false);
-      
-      // Refresh transactions
-      fetchTransactions();
-      
-    } catch (error: any) {
-      toast({
-        title: "Error adding transaction",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
+
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -523,30 +445,6 @@ const Transactions = () => {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-finLightGray hover:text-finWhite"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedTransaction(transaction);
-                                setIsEditDialogOpen(true);
-                              }}
-                              className="cursor-pointer hover:bg-finOrange/10"
-                            >
-                              Edit
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -556,269 +454,64 @@ const Transactions = () => {
         )}
       </Card>
 
-      {/* Edit Transaction Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite">
-          <DialogHeader>
-            <DialogTitle>Edit Transaction</DialogTitle>
-            <DialogDescription className="text-finLightGray">
-              Update category and add notes to this transaction
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedTransaction && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="edit-date" className="text-finLightGray">Date</Label>
-                  <Input
-                    id="edit-date"
-                    type="date"
-                    value={selectedTransaction.transaction_date}
-                    disabled
-                    className="bg-finDarkBlue/50 border-finLightGray/30 text-finLightGray"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-amount" className="text-finLightGray">Amount</Label>
-                  <Input
-                    id="edit-amount"
-                    type="text"
-                    value={formatCurrency(selectedTransaction.amount)}
-                    disabled
-                    className="bg-finDarkBlue/50 border-finLightGray/30 text-finLightGray"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-recipient" className="text-finLightGray">Recipient</Label>
-                <Input
-                  id="edit-recipient"
-                  value={selectedTransaction.receiver_id || "Unknown"}
-                  disabled
-                  className="bg-finDarkBlue/50 border-finLightGray/30 text-finLightGray"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-category" className="text-finLightGray">Category</Label>
-                <Select
-                  value={selectedTransaction.category || ""}
-                  onValueChange={(value) => {
-                    setSelectedTransaction({
-                      ...selectedTransaction,
-                      category: value,
-                    });
-                  }}
-                >
-                  <SelectTrigger
-                    id="edit-category"
-                    className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                  >
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                    {CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-notes" className="text-finLightGray">Notes</Label>
-                <Textarea
-                  id="edit-notes"
-                  placeholder="Add notes about this transaction..."
-                  value={selectedTransaction.notes || ""}
-                  onChange={(e) => {
-                    setSelectedTransaction({
-                      ...selectedTransaction,
-                      notes: e.target.value,
-                    });
-                  }}
-                  className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                />
-              </div>
-            </div>
+  
+      {/* Add Transaction Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite">
+        <DialogHeader>
+          <DialogTitle>Add Transaction</DialogTitle>
+          <DialogDescription className="text-finLightGray">
+            Record a new transaction in your account
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            addPdf()
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <Label htmlFor="pdf-upload" className="text-finLightGray">
+              Upload PDF
+            </Label>
+            <Input
+              id="pdf-upload"
+              type="file"
+              accept="application/pdf"
+              className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setPdfFile(e.target.files[0])
+                }
+              }}
+            />
+          </div>
+
+          {uploadStatus && (
+            <p className="text-sm text-yellow-300">{uploadStatus}</p>
           )}
-          
+
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
+              onClick={() => setIsAddDialogOpen(false)}
               className="border-finLightGray/30 text-finLightGray hover:text-finWhite hover:border-finLightGray/50"
             >
               Cancel
             </Button>
             <Button
-              type="button"
-              onClick={handleTransactionUpdate}
+              type="submit"
               className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
             >
-              Save Changes
+              Add PDF
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Transaction Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite">
-          <DialogHeader>
-            <DialogTitle>Add Transaction</DialogTitle>
-            <DialogDescription className="text-finLightGray">
-              Record a new transaction in your account
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...addForm}>
-            <form onSubmit={addForm.handleSubmit(onAddTransaction)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={addForm.control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-finWhite">Amount</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="100"
-                          className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={addForm.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-finWhite">Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                          <SelectItem value="debit">Debit (Expense)</SelectItem>
-                          <SelectItem value="credit">Credit (Income)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={addForm.control}
-                name="transaction_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-finWhite">Date</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                        {...field}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={addForm.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-finWhite">Category</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-finDarkBlue border-finLightGray/30 text-finWhite">
-                        {CATEGORIES.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={addForm.control}
-                name="receiver_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-finWhite">Recipient (Optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="grocery store, salary, etc."
-                        className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={addForm.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-finWhite">Notes (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Add details about this transaction..."
-                        className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddDialogOpen(false)}
-                  className="border-finLightGray/30 text-finLightGray hover:text-finWhite hover:border-finLightGray/50"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90">
-                  Add Transaction
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </DialogContent>
+    </Dialog>
     </div>
   );
 };

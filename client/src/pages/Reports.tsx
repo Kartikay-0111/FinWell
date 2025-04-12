@@ -51,6 +51,7 @@ const Reports = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
+  // console.log(user);
 
   useEffect(() => {
     if (user) {
@@ -80,7 +81,7 @@ const Reports = () => {
       const { data: currentMonthTransactions, error: currentMonthError } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user?.id)
+        // .eq('user_id', user?.id)
         .gte('transaction_date', formatDate(firstDayCurrentMonth))
         .lte('transaction_date', formatDate(lastDayCurrentMonth));
         
@@ -90,9 +91,11 @@ const Reports = () => {
       const { data: previousMonthTransactions, error: previousMonthError } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user?.id)
+        // .eq('user_id', user?.id)
         .gte('transaction_date', formatDate(firstDayPreviousMonth))
         .lte('transaction_date', formatDate(lastDayPreviousMonth));
+
+      // console.log(previousMonthTransactions);
         
       if (previousMonthError) throw previousMonthError;
       
@@ -191,6 +194,9 @@ const Reports = () => {
     }))
     .sort((a, b) => b.currentMonth - a.currentMonth)
     .slice(0, 5); // Show only top 5 categories
+
+// console.log(reportData);
+// console.log(comparisonData);
 
   return (
     <div className="space-y-6 animate-fade-in">

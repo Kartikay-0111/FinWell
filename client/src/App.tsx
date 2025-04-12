@@ -21,6 +21,7 @@ import Alerts from "./pages/Alerts";
 import Challenges from "./pages/Challenges";
 import ChatBot from "./components/ChatBot";
 import InsightsPage from "./pages/insightspage";
+import DashboardInsight from "./pages/Insights";
 
 // Other Pages
 import NotFound from "./pages/NotFound";
@@ -111,6 +112,7 @@ const App = () => {
               <Route path="alerts" element={<Alerts />} />
               <Route path="challenges" element={<Challenges />} />
               <Route path="gemini" element={<InsightsPage />} />
+              <Route path="insights" element={<DashboardInsight />} />
             </Route>
 
             {/* Catch all route */}

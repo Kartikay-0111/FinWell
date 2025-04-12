@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -50,3 +49,61 @@ export function calculatePercentage(current: number, target: number): number {
   const percentage = (current / target) * 100;
   return Math.min(100, Math.round(percentage));
 }
+
+export const generateGeminiPrompt = (transactions: any[], userQuery: string) => {
+  const categories = [
+    "Healthcare", "Food", "Shopping", "Subscriptions",
+    "Utilities", "Transport", "Entertainment", "Housing"
+  ];
+
+  const totalSpent = transactions
+    .filter(t => t.type === 'debit')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const totalIncome = transactions
+    .filter(t => t.type === 'credit')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const totalTransactions = transactions.length;
+  const manualEntries = transactions.filter(t => t.is_manual).length;
+  const uniqueDates = Array.from(new Set(transactions.map(t => t.transaction_date)));
+  const avgSpendPerDay = (totalSpent / uniqueDates.length).toFixed(2);
+
+  const categorySummary = categories.map(cat => {
+    const catTotal = transactions
+      .filter(t => t.category === cat)
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    return `- ${cat}: ₹${catTotal.toFixed(2)}`;
+  }).join('\n');
+
+  const recentTxns = transactions.slice(0, 10).map(t =>
+    `- ${t.transaction_date}: ₹${t.amount} | ${t.type} | ${t.category || 'Uncategorized'} | ${t.receiver_id || 'N/A'}`
+  ).join('\n');
+
+  return `
+You are a personal finance assistant.
+
+### Objective:
+The user asked: "${userQuery}"
+
+Use the financial data below to answer **clearly and helpfully**, tailoring the output to their request.
+
+### Financial Summary:
+- Total Transactions: ${totalTransactions}
+- Total Spent: ₹${totalSpent.toFixed(2)}
+- Total Income: ₹${totalIncome.toFixed(2)}
+- Avg Spend Per Day: ₹${avgSpendPerDay}
+- Manual Entries: ${manualEntries}
+
+### Category-wise Spending:
+${categorySummary}
+
+### Recent Transactions:
+${recentTxns}
+
+Respond as:
+1. Insightful analysis or summary based on the user's question.
+2. If unclear, assume the user wants spending patterns, alerts, or suggestions.
+3. Keep it friendly, helpful, and not overly technical.
+`;
+};

@@ -1,10 +1,12 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, X, Send, Sparkles } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useGemini } from "@/hooks/useGemini";
+import { generateGeminiPrompt } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
@@ -32,12 +34,38 @@ const ChatBot = () => {
     },
   ]);
   const [inputValue, setInputValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const { sendPrompt } = useGemini();
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
   };
 
-  const sendMessage = (text: string = inputValue) => {
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("*")
+          .order("transaction_date", { ascending: false });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          setTransactions(data);
+        }
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+      }
+    };
+
+    fetchTransactions();
+  }, []);
+
+  const sendMessage = async (text: string = inputValue) => {
     if (!text.trim()) return;
 
     // Add user message
@@ -47,38 +75,33 @@ const ChatBot = () => {
       sender: "user",
       timestamp: new Date(),
     };
-    
+
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
 
-    // Simulate bot response after a short delay
-    setTimeout(() => {
-      let botResponse: string;
-      
-      // Simple response logic based on keywords
-      if (text.toLowerCase().includes("spend") || text.toLowerCase().includes("spent")) {
-        botResponse = "Based on your transaction history, you've spent ₹25,300 in the last 7 days. Your highest spending category was Food (₹6,000).";
-      } else if (text.toLowerCase().includes("subscriptions") || text.toLowerCase().includes("cancel")) {
-        botResponse = "I found 3 active subscriptions: Netflix (₹499/month), Spotify (₹119/month), and Amazon Prime (₹179/month). You haven't used Spotify in 3 months - consider cancelling to save ₹119/month.";
-      } else if (text.toLowerCase().includes("largest") || text.toLowerCase().includes("category")) {
-        botResponse = "Your largest expense category this month is Housing at ₹15,000, followed by Food at ₹6,000 and Shopping at ₹5,000.";
-      } else if (text.toLowerCase().includes("save") || text.toLowerCase().includes("saving")) {
-        botResponse = "Great job! You've saved ₹12,000 this month, which is 23% more than last month. Keep it up! 🎉";
-      } else if (text.toLowerCase().includes("trend") || text.toLowerCase().includes("trends")) {
-        botResponse = "Your spending has decreased by 8% compared to last month. However, I noticed your food expenses have increased by 30%. Would you like some tips to reduce food spending?";
-      } else {
-        botResponse = "I understand you're asking about your finances. Could you clarify what specific information you're looking for about your spending, saving, or budgeting?";
-      }
-      
+    // Send prompt to Gemini and handle response
+    setLoading(true);
+    try {
+      const prompt = generateGeminiPrompt(transactions, text);
+      const botResponse = await sendPrompt(prompt);
       const botMessage: Message = {
         id: Date.now().toString(),
         text: botResponse,
         sender: "bot",
         timestamp: new Date(),
       };
-      
       setMessages((prev) => [...prev, botMessage]);
-    }, 1000);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        text: "Something went wrong while processing your request. Please try again.",
+        sender: "bot",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -159,7 +182,7 @@ const ChatBot = () => {
               </div>
             ))}
           </div>
-          
+
           {/* Suggestions */}
           {messages.length < 3 && (
             <div className="p-3 border-t border-finOrange/10">
@@ -177,7 +200,7 @@ const ChatBot = () => {
               </div>
             </div>
           )}
-          
+
           {/* Input area */}
           <div className="border-t border-finOrange/10 p-3">
             <form onSubmit={handleSubmit} className="flex items-center space-x-2">
@@ -186,13 +209,15 @@ const ChatBot = () => {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 className="flex-1 bg-finDarkBlue/70 border-finLightGray/30 text-finWhite"
+                disabled={loading}
               />
               <Button
                 type="submit"
                 size="icon"
                 className="h-10 w-10 bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
+                disabled={loading}
               >
-                <Send className="h-4 w-4" />
+                {loading ? <div className="animate-spin h-4 w-4 border-2 border-finDarkBlue border-t-transparent rounded-full" /> : <Send className="h-4 w-4" />}
               </Button>
             </form>
           </div>
