@@ -30,23 +30,153 @@ import {
   TrendingUp, 
   TrendingDown 
 } from "lucide-react";
-import { mockDataService, ReportData } from "@/services/mockData";
 import { formatCurrency } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+
+// Define the interface for report data
+interface ReportData {
+  month: string;
+  totalSavings: number;
+  totalIncome: number;
+  totalExpense: number;
+  categorySpendings: Record<string, number>;
+  comparison: Record<string, number>;
+}
 
 const Reports = () => {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [shareEnabled, setShareEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const data = mockDataService.getReportData();
-    setReportData(data);
-  }, []);
+    if (user) {
+      fetchReportData();
+    }
+  }, [user]);
+
+  const fetchReportData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get current date info
+      const now = new Date();
+      const currentMonth = now.toLocaleString('default', { month: 'long' });
+      const currentYear = now.getFullYear();
+      
+      // Get first day of current month and previous month
+      const firstDayCurrentMonth = new Date(currentYear, now.getMonth(), 1);
+      const lastDayCurrentMonth = new Date(currentYear, now.getMonth() + 1, 0);
+      const firstDayPreviousMonth = new Date(currentYear, now.getMonth() - 1, 1);
+      const lastDayPreviousMonth = new Date(currentYear, now.getMonth(), 0);
+      
+      // Format dates for queries
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      
+      // Fetch current month transactions
+      const { data: currentMonthTransactions, error: currentMonthError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .gte('transaction_date', formatDate(firstDayCurrentMonth))
+        .lte('transaction_date', formatDate(lastDayCurrentMonth));
+        
+      if (currentMonthError) throw currentMonthError;
+      
+      // Fetch previous month transactions
+      const { data: previousMonthTransactions, error: previousMonthError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .gte('transaction_date', formatDate(firstDayPreviousMonth))
+        .lte('transaction_date', formatDate(lastDayPreviousMonth));
+        
+      if (previousMonthError) throw previousMonthError;
+      
+      // Calculate totals for current month
+      const currentIncome = currentMonthTransactions
+        .filter(t => t.type === 'credit')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+        
+      const currentExpense = currentMonthTransactions
+        .filter(t => t.type === 'debit')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+        
+      const currentSavings = currentIncome - currentExpense;
+      
+      // Calculate category spendings for current month
+      const categorySpendings: Record<string, number> = {};
+      currentMonthTransactions
+        .filter(t => t.type === 'debit')
+        .forEach(t => {
+          const category = t.category || 'Uncategorized';
+          categorySpendings[category] = (categorySpendings[category] || 0) + Number(t.amount);
+        });
+      
+      // Calculate comparison percentages between months
+      const comparison: Record<string, number> = {};
+      
+      // Group previous month transactions by category
+      const previousCategorySpendings: Record<string, number> = {};
+      previousMonthTransactions
+        .filter(t => t.type === 'debit')
+        .forEach(t => {
+          const category = t.category || 'Uncategorized';
+          previousCategorySpendings[category] = (previousCategorySpendings[category] || 0) + Number(t.amount);
+        });
+      
+      // Calculate percentage changes
+      Object.keys(categorySpendings).forEach(category => {
+        const currentAmount = categorySpendings[category] || 0;
+        const previousAmount = previousCategorySpendings[category] || 0;
+        
+        if (previousAmount === 0) {
+          comparison[category] = 100; // New category
+        } else {
+          const change = ((currentAmount - previousAmount) / previousAmount) * 100;
+          comparison[category] = Math.round(change);
+        }
+      });
+      
+      // Build the report data object
+      const reportData: ReportData = {
+        month: currentMonth,
+        totalSavings: currentSavings,
+        totalIncome: currentIncome,
+        totalExpense: currentExpense,
+        categorySpendings,
+        comparison
+      };
+      
+      setReportData(reportData);
+    } catch (error: any) {
+      toast({
+        title: "Error fetching report data",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // If loading
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="animate-spin h-8 w-8 border-4 border-finOrange border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   // If no data is loaded yet
   if (!reportData) {
     return (
       <div className="flex justify-center items-center h-96">
-        <p className="text-finLightGray">Loading reports...</p>
+        <p className="text-finLightGray">No report data available. Try adding some transactions first.</p>
       </div>
     );
   }
@@ -98,7 +228,9 @@ const Reports = () => {
                   You saved {formatCurrency(reportData.totalSavings)} this month!
                 </h3>
                 <p className="text-finLightGray">
-                  That's {(reportData.totalSavings / reportData.totalIncome * 100).toFixed(0)}% of your income. 
+                  That's {reportData.totalIncome > 0 ? 
+                    `${(reportData.totalSavings / reportData.totalIncome * 100).toFixed(0)}% of your income` : 
+                    '0% of your income'}. 
                   {reportData.totalSavings > 10000 
                     ? " Great job! 🎉" 
                     : " Keep going to reach your goals."}
@@ -194,79 +326,93 @@ const Reports = () => {
             </TabsList>
             
             <TabsContent value="chart" className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={comparisonData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
-                  barSize={30}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2A3A5C" />
-                  <XAxis 
-                    dataKey="category" 
-                    stroke="#E5E5E5"
-                    angle={-45}
-                    textAnchor="end"
-                    height={70}
-                    tickMargin={20}
-                  />
-                  <YAxis stroke="#E5E5E5" />
-                  <Tooltip 
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: '#14213D', borderColor: '#FCA311' }}
-                  />
-                  <Bar 
-                    name="Current Month" 
-                    dataKey="currentMonth" 
-                    fill="#FCA311"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar 
-                    name="Previous Month" 
-                    dataKey="previousMonth" 
-                    fill="#5D87E6"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              {comparisonData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-finLightGray">
+                  <p>No transaction data available for comparison</p>
+                  <p className="text-sm mt-2">Add some transactions to see category comparisons</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={comparisonData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
+                    barSize={30}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2A3A5C" />
+                    <XAxis 
+                      dataKey="category" 
+                      stroke="#E5E5E5"
+                      angle={-45}
+                      textAnchor="end"
+                      height={70}
+                      tickMargin={20}
+                    />
+                    <YAxis stroke="#E5E5E5" />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ backgroundColor: '#14213D', borderColor: '#FCA311' }}
+                    />
+                    <Bar 
+                      name="Current Month" 
+                      dataKey="currentMonth" 
+                      fill="#FCA311"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar 
+                      name="Previous Month" 
+                      dataKey="previousMonth" 
+                      fill="#5D87E6"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </TabsContent>
             
             <TabsContent value="table">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-finLightGray/20">
-                      <th className="text-left py-2 px-4 text-finLightGray">Category</th>
-                      <th className="text-right py-2 px-4 text-finLightGray">Current Month</th>
-                      <th className="text-right py-2 px-4 text-finLightGray">Previous Month</th>
-                      <th className="text-right py-2 px-4 text-finLightGray">Change</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparisonData.map((item) => (
-                      <tr key={item.category} className="border-b border-finLightGray/10">
-                        <td className="py-3 px-4 text-finWhite">{item.category}</td>
-                        <td className="py-3 px-4 text-right text-finWhite">{formatCurrency(item.currentMonth)}</td>
-                        <td className="py-3 px-4 text-right text-finWhite">{formatCurrency(item.previousMonth)}</td>
-                        <td className={`py-3 px-4 text-right flex items-center justify-end ${
-                          item.change > 0 ? 'text-red-500' : item.change < 0 ? 'text-green-500' : 'text-finLightGray'
-                        }`}>
-                          {item.change > 0 ? (
-                            <>
-                              <ArrowUp className="h-4 w-4 mr-1" /> {item.change}%
-                            </>
-                          ) : item.change < 0 ? (
-                            <>
-                              <ArrowDown className="h-4 w-4 mr-1" /> {Math.abs(item.change)}%
-                            </>
-                          ) : (
-                            <>0%</>
-                          )}
-                        </td>
+              {comparisonData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-finLightGray">
+                  <p>No transaction data available for comparison</p>
+                  <p className="text-sm mt-2">Add some transactions to see category comparisons</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-finLightGray/20">
+                        <th className="text-left py-2 px-4 text-finLightGray">Category</th>
+                        <th className="text-right py-2 px-4 text-finLightGray">Current Month</th>
+                        <th className="text-right py-2 px-4 text-finLightGray">Previous Month</th>
+                        <th className="text-right py-2 px-4 text-finLightGray">Change</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {comparisonData.map((item) => (
+                        <tr key={item.category} className="border-b border-finLightGray/10">
+                          <td className="py-3 px-4 text-finWhite">{item.category}</td>
+                          <td className="py-3 px-4 text-right text-finWhite">{formatCurrency(item.currentMonth)}</td>
+                          <td className="py-3 px-4 text-right text-finWhite">{formatCurrency(item.previousMonth)}</td>
+                          <td className={`py-3 px-4 text-right flex items-center justify-end ${
+                            item.change > 0 ? 'text-red-500' : item.change < 0 ? 'text-green-500' : 'text-finLightGray'
+                          }`}>
+                            {item.change > 0 ? (
+                              <>
+                                <ArrowUp className="h-4 w-4 mr-1" /> {item.change}%
+                              </>
+                            ) : item.change < 0 ? (
+                              <>
+                                <ArrowDown className="h-4 w-4 mr-1" /> {Math.abs(item.change)}%
+                              </>
+                            ) : (
+                              <>0%</>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

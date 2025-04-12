@@ -1,6 +1,6 @@
 
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   LayoutDashboard, 
   ArrowRightLeft, 
@@ -17,12 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userName, setUserName] = useState("User");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { user, signOut } = useAuth();
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> },
@@ -33,13 +38,60 @@ const DashboardLayout = () => {
     { path: "/challenges", label: "Challenges", icon: <Trophy className="mr-2 h-4 w-4" /> },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("finwell-user");
-    toast({
-      title: "Logged out successfully",
-      description: "You have been logged out of your account.",
-    });
-    navigate("/login");
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', user?.id)
+        .maybeSingle();
+        
+      if (error) {
+        throw error;
+      }
+      
+      if (data && data.name) {
+        setUserName(data.name);
+      }
+      
+    } catch (error: any) {
+      console.error("Error fetching user profile:", error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        title: "Logout failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Get user initials for avatar
+  const getInitials = () => {
+    if (!userName) return "U";
+    
+    const names = userName.split(" ");
+    if (names.length > 1) {
+      return `${names[0][0]}${names[1][0]}`.toUpperCase();
+    }
+    
+    return names[0][0].toUpperCase();
   };
 
   return (
@@ -98,10 +150,10 @@ const DashboardLayout = () => {
               <div className="flex items-center">
                 <Avatar className="h-8 w-8 mr-2">
                   <AvatarImage src="" />
-                  <AvatarFallback className="bg-finOrange text-finDarkBlue">AJ</AvatarFallback>
+                  <AvatarFallback className="bg-finOrange text-finDarkBlue">{getInitials()}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-sm font-medium">Aisha Jain</p>
+                  <p className="text-sm font-medium">{loading ? "Loading..." : userName}</p>
                   <p className="text-xs text-finLightGray">Free Plan</p>
                 </div>
               </div>
