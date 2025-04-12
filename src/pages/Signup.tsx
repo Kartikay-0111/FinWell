@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
 interface SignupProps {
@@ -107,6 +108,23 @@ const Signup = ({ setIsAuthenticated }: SignupProps) => {
                 <p className="text-xs text-finLightGray">
                   Password must be at least 8 characters long
                 </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox id="terms" />
+                <label
+                  htmlFor="terms"
+                  className="text-sm text-finLightGray leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  I agree to the{" "}
+                  <Link to="#" className="text-finOrange hover:underline">
+                    Terms of Service
+                  </Link>
+                  {" "}and{" "}
+                  <Link to="#" className="text-finOrange hover:underline">
+                    Privacy Policy
+                  </Link>
+                </label>
               </div>
               
               <Button

@@ -2,9 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/client'
-
-const supabase = createClient()
+import { supabase } from "@/integrations/supabase/client";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
