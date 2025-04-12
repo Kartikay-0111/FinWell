@@ -5,48 +5,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { Icons } from "@/components/ui/icons";
 
-interface LoginProps {
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean | null>>;
-}
-
-const Login = ({ setIsAuthenticated }: LoginProps) => {
+const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const { signIn, signInWithGoogle } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    await signIn(email, password);
+    setIsLoading(false);
+  };
 
-    // Simulate a login API call
-    setTimeout(() => {
-      // Mock login - in a real app, this would validate against a backend
-      if (email && password) {
-        // Store user in localStorage
-        localStorage.setItem(
-          "finwell-user",
-          JSON.stringify({ email, name: "Aisha Jain" })
-        );
-        
-        // Update auth state
-        setIsAuthenticated(true);
-        
-        toast({
-          title: "Login successful",
-          description: "Welcome back to FinWell!",
-        });
-      } else {
-        toast({
-          title: "Login failed",
-          description: "Please enter valid credentials",
-          variant: "destructive",
-        });
-      }
-      setIsLoading(false);
-    }, 1000);
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    await signInWithGoogle();
+    // Note: We don't set isGoogleLoading to false here because the page will redirect
   };
 
   return (
@@ -66,46 +45,80 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
           </CardHeader>
           
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-finWhite">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-finWhite">Password</Label>
-                  <Link to="#" className="text-xs text-finOrange hover:underline">
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-                  required
-                />
-              </div>
-              
-              <Button
-                type="submit"
-                className="w-full bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
-                disabled={isLoading}
+            <div className="space-y-4">
+              <Button 
+                variant="outline"
+                className="w-full bg-finDarkBlue border border-finLightGray/30 text-finWhite hover:bg-finDarkBlue/90"
+                onClick={handleGoogleLogin}
+                disabled={isGoogleLoading}
               >
-                {isLoading ? "Logging in..." : "Log in"}
+                {isGoogleLoading ? (
+                  <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Icons.google className="mr-2 h-4 w-4" />
+                )}
+                Sign in with Google
               </Button>
-            </form>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-finLightGray/30" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-finDarkBlue px-2 text-finLightGray">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+              
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-finWhite">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-finWhite">Password</Label>
+                    <Link to="#" className="text-xs text-finOrange hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
+                    required
+                  />
+                </div>
+                
+                <Button
+                  type="submit"
+                  className="w-full bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+              </form>
+            </div>
           </CardContent>
           
           <CardFooter className="flex justify-center">

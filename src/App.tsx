@@ -8,6 +8,8 @@ import { useState, useEffect } from "react";
 // Auth Pages
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AuthCallback from "./pages/AuthCallback";
+import SalaryForm from "./components/SalaryForm";
 
 // Main Pages
 import Dashboard from "./pages/Dashboard";
@@ -23,23 +25,61 @@ import NotFound from "./pages/NotFound";
 
 // Layout Components
 import DashboardLayout from "./components/layouts/DashboardLayout";
+import { useAuth } from "./hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
-const App = () => {
+// Wrapper component for protected routes that need authentication
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasSalary, setHasSalary] = useState<boolean | null>(null);
 
-  // Check local storage for authentication on app load
   useEffect(() => {
-    const user = localStorage.getItem("finwell-user");
-    setIsAuthenticated(!!user);
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsAuthenticated(!!data.session);
+
+      if (data.session) {
+        // Check if user has provided salary info
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('income')
+          .eq('id', data.session.user.id)
+          .maybeSingle();
+
+        if (!error && userData && userData.income) {
+          setHasSalary(true);
+        } else {
+          setHasSalary(false);
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
-  // If authentication state isn't determined yet, don't render anything
-  if (isAuthenticated === null) {
-    return null;
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-finDarkBlue">
+      <span className="text-finWhite">Loading...</span>
+    </div>;
   }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  if (isAuthenticated && hasSalary === false) {
+    return <SalaryForm />;
+  }
+
+  return <>{children}</>;
+};
+
+const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -48,24 +88,17 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             {/* Auth Routes */}
-            <Route
-              path="/login"
-              element={
-                isAuthenticated ? <Navigate to="/dashboard" /> : <Login setIsAuthenticated={setIsAuthenticated} />
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                isAuthenticated ? <Navigate to="/dashboard" /> : <Signup setIsAuthenticated={setIsAuthenticated} />
-              }
-            />
-
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            
             {/* Protected Routes */}
             <Route
               path="/"
               element={
-                isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" />
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
               }
             >
               <Route index element={<Navigate to="/dashboard" replace />} />
@@ -81,12 +114,33 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
           
-          {/* Global floating chat bot button */}
-          {isAuthenticated && <ChatBot />}
+          {/* Global floating chat bot button - only show for authenticated users */}
+          <ChatBotWrapper />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   );
+};
+
+// Only render ChatBot if user is authenticated
+const ChatBotWrapper = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (!isAuthenticated) return null;
+  
+  return <ChatBot />;
 };
 
 export default App;
