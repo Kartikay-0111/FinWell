@@ -20,6 +20,7 @@ import Reports from "./pages/Reports";
 import Alerts from "./pages/Alerts";
 import Challenges from "./pages/Challenges";
 import ChatBot from "./components/ChatBot";
+import InsightsPage from "./pages/insightspage";
 
 // Other Pages
 import NotFound from "./pages/NotFound";
@@ -109,6 +110,7 @@ const App = () => {
               <Route path="reports" element={<Reports />} />
               <Route path="alerts" element={<Alerts />} />
               <Route path="challenges" element={<Challenges />} />
+              <Route path="gemini" element={<InsightsPage />} />
             </Route>
 
             {/* Catch all route */}
