@@ -47,7 +47,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, Filter, MoreHorizontal, Calendar, ArrowUpDown, Plus } from "lucide-react";
+import { AlertTriangle, Filter, MoreHorizontal, Calendar, ArrowUpDown, Plus, Upload, FileUp, X, Check, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -99,6 +99,8 @@ const Transactions = () => {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploadResponse, setUploadResponse] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const addPdf = async () => {
     if (!pdfFile) {
@@ -108,25 +110,48 @@ const Transactions = () => {
 
     const formData = new FormData()
     formData.append('pdf_file', pdfFile)
+    
+    setUploadProgress(0)
+    setUploadStatus('Uploading...')
 
     try {
-      const response = await fetch('https://d475-103-104-226-58.ngrok-free.app/upload_pdf', {
-        method: 'POST',
-        body: formData,
+      // Using XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest()
+      
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100)
+          setUploadProgress(progress)
+        }
       })
 
-      const data = await response.json()
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const data = JSON.parse(xhr.responseText)
+          setUploadStatus('Upload successful!')
+          setUploadResponse(data)
+          setTimeout(() => setIsAddDialogOpen(false), 1000) // Close after showing success
+        } else {
+          let errorMessage = 'An error occurred.'
+          try {
+            const errorData = JSON.parse(xhr.responseText)
+            errorMessage = errorData.error || errorMessage
+          } catch (e) {}
+          setUploadStatus(`Upload failed: ${errorMessage}`)
+          setUploadProgress(0)
+        }
+      })
 
-      if (response.ok) {
-        setUploadStatus('Upload successful!')
-        setUploadResponse(data)
-        setIsAddDialogOpen(false)
-      } else {
-        setUploadStatus(`Upload failed: ${data.error || 'An error occurred.'}`)
-        setUploadResponse(data)
-      }
+      xhr.addEventListener('error', () => {
+        setUploadStatus('Upload failed: Network error')
+        setUploadProgress(0)
+      })
+
+      xhr.open('POST', 'https://d475-103-104-226-58.ngrok-free.app/upload_pdf')
+      xhr.send(formData)
     } catch (error: any) {
       setUploadStatus(`Upload failed: ${error.message}`)
+      setUploadProgress(0)
       setUploadResponse({ error: error.message })
     }
   }
@@ -456,12 +481,22 @@ const Transactions = () => {
 
   
       {/* Add Transaction Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-      <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite">
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setPdfFile(null)
+          setUploadStatus('')
+          setUploadProgress(0)
+        }
+        setIsAddDialogOpen(open)
+      }}>
+      <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite sm:max-w-md md:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Transaction</DialogTitle>
+          <DialogTitle className="text-xl flex items-center gap-2">
+            <FileUp className="h-5 w-5 text-finOrange" />
+            Add Transaction
+          </DialogTitle>
           <DialogDescription className="text-finLightGray">
-            Record a new transaction in your account
+            Upload a PDF statement to record a new transaction
           </DialogDescription>
         </DialogHeader>
 
@@ -470,30 +505,108 @@ const Transactions = () => {
             e.preventDefault()
             addPdf()
           }}
-          className="space-y-4"
+          className="space-y-6"
         >
-          <div>
-            <Label htmlFor="pdf-upload" className="text-finLightGray">
-              Upload PDF
-            </Label>
-            <Input
-              id="pdf-upload"
-              type="file"
-              accept="application/pdf"
-              className="bg-finDarkBlue border-finLightGray/30 text-finWhite"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  setPdfFile(e.target.files[0])
+          <div 
+            className={`relative border-2 border-dashed rounded-lg p-8 transition-all duration-200 ${isDragging ? 'border-finOrange bg-finOrange/10' : pdfFile ? 'border-green-500/50 bg-green-500/5' : 'border-finLightGray/30 hover:border-finLightGray/50'}`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setIsDragging(true)
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDragging(false)
+              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                const file = e.dataTransfer.files[0]
+                if (file.type === 'application/pdf') {
+                  setPdfFile(file)
+                  setUploadStatus('')
+                } else {
+                  setUploadStatus('Please select a PDF file.')
                 }
-              }}
-            />
+              }
+            }}
+          >
+            {!pdfFile ? (
+              <div className="flex flex-col items-center justify-center space-y-4 py-4">
+                <div className="p-4 bg-finOrange/20 rounded-full">
+                  <Upload className="h-8 w-8 text-finOrange" />
+                </div>
+                <div className="text-center space-y-2">
+                  <h3 className="text-finWhite font-medium">Drag and drop your PDF file</h3>
+                  <p className="text-finLightGray text-sm">or click to browse files</p>
+                </div>
+                <Label 
+                  htmlFor="pdf-upload" 
+                  className="cursor-pointer bg-finOrange/20 hover:bg-finOrange/30 text-finOrange px-4 py-2 rounded-md font-medium flex items-center gap-2 transition-colors"
+                >
+                  <FileText className="h-4 w-4" />
+                  Select PDF
+                </Label>
+                <Input
+                  id="pdf-upload"
+                  type="file"
+                  accept="application/pdf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setPdfFile(e.target.files[0])
+                      setUploadStatus('')
+                    }
+                  }}
+                />
+                <p className="text-xs text-finLightGray">Supported format: PDF</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center space-y-4 py-4">
+                <div className="p-3 bg-green-500/20 rounded-full">
+                  <Check className="h-6 w-6 text-green-500" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-finWhite font-medium">File ready for upload</h3>
+                  <p className="text-finLightGray text-sm flex items-center justify-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    {pdfFile.name}
+                  </p>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="text-red-400 border-red-400/30 hover:bg-red-400/10 hover:text-red-300 flex items-center gap-1"
+                  onClick={() => {
+                    setPdfFile(null)
+                    setUploadStatus('')
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                  Remove
+                </Button>
+              </div>
+            )}
           </div>
-
+          
           {uploadStatus && (
-            <p className="text-sm text-yellow-300">{uploadStatus}</p>
+            <div className="space-y-2">
+              <p className={`text-sm ${uploadStatus.includes('successful') ? 'text-green-400' : uploadStatus === 'Uploading...' ? 'text-blue-400' : 'text-yellow-300'} flex items-center gap-2`}>
+                {uploadStatus.includes('successful') ? <Check className="h-4 w-4" /> : 
+                 uploadStatus === 'Uploading...' ? <FileUp className="h-4 w-4 animate-pulse" /> : 
+                 <AlertTriangle className="h-4 w-4" />}
+                {uploadStatus}
+              </p>
+              
+              {uploadProgress > 0 && uploadProgress < 100 && (
+                <div className="w-full bg-finLightGray/20 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-finOrange h-2.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
@@ -504,9 +617,11 @@ const Transactions = () => {
             </Button>
             <Button
               type="submit"
-              className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
+              className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90 flex items-center gap-2"
+              disabled={!pdfFile || uploadStatus === 'Uploading...'}
             >
-              Add PDF
+              <FileUp className="h-4 w-4" />
+              Upload PDF
             </Button>
           </DialogFooter>
         </form>
