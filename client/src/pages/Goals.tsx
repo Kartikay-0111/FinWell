@@ -48,6 +48,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { AddFundsDialog } from "@/components/ui/AddFundsDialog"
+
 
 type Goal = {
   id: string;
@@ -234,21 +236,32 @@ const Goals = () => {
   
   const handleAddFunds = async (goalId: string, currentAmount: number, targetAmount: number) => {
     try {
-      // For simplicity, we'll add 10% of the remaining amount or $100, whichever is less
-      const remaining = targetAmount - currentAmount;
-      const addAmount = Math.min(remaining, Math.min(remaining * 0.1, 100));
-      
-      if (addAmount <= 0) {
+      const input = prompt("Enter the amount you want to add:");
+      if (!input) return;
+  
+      const addAmount = parseFloat(input);
+      if (isNaN(addAmount) || addAmount <= 0) {
         toast({
-          title: "Goal already complete",
-          description: "This goal has already reached its target amount."
+          title: "Invalid amount",
+          description: "Please enter a valid number greater than 0.",
+          variant: "destructive",
         });
         return;
       }
-      
+  
+      const remaining = targetAmount - currentAmount;
+      if (addAmount > remaining) {
+        toast({
+          title: "Exceeds target",
+          description: `You can't add more than the remaining amount: ${formatCurrency(remaining)}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+  
       const newAmount = currentAmount + addAmount;
       const isCompleted = newAmount >= targetAmount;
-      
+  
       const { error } = await supabase
         .from('goals')
         .update({
@@ -257,19 +270,15 @@ const Goals = () => {
           updated_at: new Date().toISOString()
         })
         .eq('id', goalId);
-        
-      if (error) {
-        throw error;
-      }
-      
+  
+      if (error) throw error;
+  
       toast({
         title: "Funds added",
         description: `Added ${formatCurrency(addAmount)} to your goal.`
       });
-      
-      // Refresh goals
+  
       fetchGoals();
-      
     } catch (error: any) {
       toast({
         title: "Error adding funds",
@@ -278,7 +287,7 @@ const Goals = () => {
       });
     }
   };
-
+  
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
