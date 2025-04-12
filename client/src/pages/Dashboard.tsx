@@ -168,6 +168,7 @@ const TransactionCard = ({ transaction }: { transaction: Transaction }) => {
 
 const Dashboard = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [incomeTotal, setIncomeTotal] = useState(0);
   const [expenseTotal, setExpenseTotal] = useState(0);
   const [savingsTotal, setSavingsTotal] = useState(0);
@@ -206,13 +207,40 @@ const Dashboard = () => {
       
       if (data) {
         setTransactions(data);
+            // Get unique user IDs from transactions
+        const userIds = [...new Set(data.map(t => t.user_id).filter(Boolean))];
+
+        // Fetch user income data for all userIds
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, income")
+          .in("id", userIds);
+
+        if (usersError) throw usersError;
+
+        setUsers(usersData || []);
+
+        // Build a userId -> income map
+        const incomeMap = (usersData || []).reduce((acc, user) => {
+          acc[user.id] = user.income || 0;
+          return acc;
+        }, {} as Record<string, number>);
         
         // Calculate totals
-        const income = data.filter(t => t.type === "credit").reduce((sum, t) => sum + t.amount, 0);
+        // Calculate totals
+        const incomeFromCredits = data
+        .filter(t => t.type === "credit")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+        // Total income = credit transactions + income from users
+        const incomeFromUsers = userIds.reduce((sum, id) => sum + (incomeMap[id] || 0), 0);
+
+        const totalIncome = incomeFromCredits + incomeFromUsers;
+
         const expenses = data.filter(t => t.type === "debit").reduce((sum, t) => sum + t.amount, 0);
-        const savings = income - expenses;
+        const savings = totalIncome - expenses;
         
-        setIncomeTotal(income);
+        setIncomeTotal(totalIncome);
         setExpenseTotal(expenses);
         setSavingsTotal(savings);
       }
