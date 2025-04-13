@@ -21,7 +21,8 @@ import Alerts from "./pages/Alerts";
 import Challenges from "./pages/Challenges";
 import ChatBot from "./components/ChatBot";
 import InsightsPage from "./pages/insightspage";
-import LandingPage from "./pages/landing";
+import DashboardInsight from "./pages/Insights";
+import EnhancedLandingPage from "./pages/landing";
 
 // Other Pages
 import NotFound from "./pages/NotFound";
@@ -90,24 +91,13 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route
-              path="/login"
-              element={
-              <ProtectedRoute>
-                <Navigate to="/dashboard" replace />
-              </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-              <ProtectedRoute>
-                <Navigate to="/dashboard" replace />
-              </ProtectedRoute>
-              }
-            />
+            {/* Auth Routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/landing" element={<LandingPage />} />  {/* Protected Routes */}
+            <Route path="landing" element={<EnhancedLandingPage />} />
+            
+            {/* Protected Routes */}
             <Route
               path="/"
               element={
@@ -124,6 +114,8 @@ const App = () => {
               <Route path="alerts" element={<Alerts />} />
               <Route path="challenges" element={<Challenges />} />
               <Route path="gemini" element={<InsightsPage />} />
+              <Route path="insights" element={<DashboardInsight />} />
+              
             </Route>
 
             {/* Catch all route */}
