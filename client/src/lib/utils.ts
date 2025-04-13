@@ -107,3 +107,87 @@ Respond as:
 3. Keep it friendly, helpful, and not overly technical.
 `;
 };
+
+
+export const suggestionsPrompt = (transactions: any[]) => {
+  const categories = [
+    "Healthcare", "Food", "Shopping", "Subscriptions",
+    "Utilities", "Transport", "Entertainment", "Housing"
+  ];
+
+  const totalSpent = transactions
+    .filter(t => t.type === 'debit')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const totalIncome = transactions
+    .filter(t => t.type === 'credit')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const totalTransactions = transactions.length;
+  const manualEntries = transactions.filter(t => t.is_manual).length;
+  const uniqueDates = Array.from(new Set(transactions.map(t => t.transaction_date)));
+  const avgSpendPerDay = uniqueDates.length > 0 ? (totalSpent / uniqueDates.length).toFixed(2) : "0";
+
+  const categorySummary = categories.map(cat => {
+    const catTotal = transactions
+      .filter(t => t.category === cat)
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const percentage = totalSpent > 0 ? ((catTotal / totalSpent) * 100).toFixed(2) : "0.00";
+    return `- ${cat}: ₹${catTotal.toFixed(2)} (${percentage}%)`;
+  }).join('\n');
+
+  const recentTxns = transactions.slice(0, 10).map(t =>
+    `- ${t.transaction_date}: ₹${t.amount} | ${t.type} | ${t.category || 'Uncategorized'} | ${t.receiver_id || 'N/A'}`
+  ).join('\n');
+
+  const topSpendingCategory = categories
+    .map(cat => {
+      const amount = transactions
+        .filter(t => t.category === cat)
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      return { category: cat, amount };
+    })
+    .sort((a, b) => b.amount - a.amount)[0];
+
+  const savings = (totalIncome - totalSpent).toFixed(2);
+  const savingsRate = totalIncome > 0 ? ((parseFloat(savings) / totalIncome) * 100).toFixed(2) : "0";
+
+  return `
+You are a witty personal finance assistant with a slightly sarcastic tone.
+
+Your job is to analyze the user's financial data and output 3 short, funny, but helpful insight sentences.
+
+
+The output should be only **sentence-style insights** in a **bullet-point format**, like:
+
+💡 Style Examples:
+- "You spent 2x more on Swiggy than on groceries. Priorities, huh?"
+- "Netflix, Hotstar, Prime, and Skillshare? Are you watching or investing?"
+- "Impulse shopping alert: Amazon got you again (and again)."
+- "Food delivery is your love language. Try cooking?"
+- "Saved 45% of your income — wow, who even are you?"
+
+Use real numbers from the data where useful. Focus on categories with high spend, savings opportunity, recurring behavior, or anything unusual.
+
+Only output  insights. Be concise, actionable, and human-like — no preamble or explanation.
+
+---
+
+### Financial Overview:
+- Total Transactions: ${totalTransactions}
+- Total Income: ₹${totalIncome.toFixed(2)}
+- Total Spent: ₹${totalSpent.toFixed(2)}
+- Savings: ₹${savings} (${savingsRate}% of income)
+- Avg Spend Per Day: ₹${avgSpendPerDay}
+- Manual Entries (via screenshots): ${manualEntries} (${((manualEntries / totalTransactions) * 100).toFixed(1)}%)
+
+### Category-wise Spending Breakdown:
+${categorySummary}
+
+- Highest Spending Category: ${topSpendingCategory.category} (₹${topSpendingCategory.amount.toFixed(2)})
+
+### Recent Transactions:
+${recentTxns}
+ Now generate only funny, taunting financial insights in bullet points. No extra commentary or intro. Just the insights.
+`;
+};

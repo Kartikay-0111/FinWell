@@ -21,7 +21,6 @@ import Alerts from "./pages/Alerts";
 import Challenges from "./pages/Challenges";
 import ChatBot from "./components/ChatBot";
 import InsightsPage from "./pages/insightspage";
-import DashboardInsight from "./pages/Insights";
 import EnhancedLandingPage from "./pages/landing";
 
 // Other Pages
@@ -92,10 +91,24 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             {/* Auth Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route
+              path="/login"
+              element={
+              <ProtectedRoute>
+                <Navigate to="/dashboard" replace />
+              </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/signup"
+              element={
+              <ProtectedRoute>
+                <Navigate to="/dashboard" replace />
+              </ProtectedRoute>
+              }
+            />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="landing" element={<EnhancedLandingPage />} />
+            <Route path="/landing" element={<EnhancedLandingPage />} />
             
             {/* Protected Routes */}
             <Route
@@ -114,7 +127,6 @@ const App = () => {
               <Route path="alerts" element={<Alerts />} />
               <Route path="challenges" element={<Challenges />} />
               <Route path="gemini" element={<InsightsPage />} />
-              <Route path="insights" element={<DashboardInsight />} />
               
             </Route>
 

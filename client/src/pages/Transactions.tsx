@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { CheckCircle, XCircle,AlertCircle } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -16,12 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -36,13 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-} from "@/components/ui/form";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -51,20 +40,18 @@ import { AlertTriangle, Filter, MoreHorizontal, Calendar, ArrowUpDown, Plus, Upl
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 
-type Transaction = {
-  id: string;
-  user_id: string;
-  amount: number;
-  type: string;
-  category: string | null;
-  transaction_date: string;
-  created_at: string;
-  receiver_id: string | null;
-  notes?: string;
-};
+// type Transaction = {
+//   id: string;
+//   user_id: string;
+//   amount: number;
+//   type: string;
+//   category: string | null;
+//   transaction_date: string;
+//   created_at: string;
+//   receiver_id: string | null;
+//   notes?: string;
+// };
 
 const CATEGORIES = [
   "Food",
@@ -91,9 +78,9 @@ const formatCurrency = (amount: number): string => {
 };
 
 const Transactions = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [transactions, setTransactions] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pdfFile, setPdfFile] = useState<File | null>(null)
@@ -101,6 +88,19 @@ const Transactions = () => {
   const [uploadResponse, setUploadResponse] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [validatedTransactions, setValidatedTransactions] = useState({});
+  const [needsValidation, setNeedsValidation] = useState({});
+
+  const handleValidate = (transactionId) => {
+    setValidatedTransactions((prev) => ({
+      ...prev,
+      [transactionId]: !prev[transactionId],
+    }));
+  };
+
+  const formatCurrency = (amount) => {
+    return `₹${parseFloat(amount).toFixed(2)}`;
+  };
 
   const addPdf = async () => {
     if (!pdfFile) {
@@ -110,14 +110,14 @@ const Transactions = () => {
 
     const formData = new FormData()
     formData.append('pdf_file', pdfFile)
-    
+
     setUploadProgress(0)
     setUploadStatus('Uploading...')
 
     try {
       // Using XMLHttpRequest to track upload progress
       const xhr = new XMLHttpRequest()
-      
+
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const progress = Math.round((event.loaded / event.total) * 100)
@@ -136,7 +136,7 @@ const Transactions = () => {
           try {
             const errorData = JSON.parse(xhr.responseText)
             errorMessage = errorData.error || errorMessage
-          } catch (e) {}
+          } catch (e) { }
           setUploadStatus(`Upload failed: ${errorMessage}`)
           setUploadProgress(0)
         }
@@ -147,7 +147,7 @@ const Transactions = () => {
         setUploadProgress(0)
       })
 
-      xhr.open('POST', 'https://d475-103-104-226-58.ngrok-free.app/upload_pdf')
+      xhr.open('POST', 'https://d44b-103-104-226-58.ngrok-free.app/upload_pdf')
       xhr.send(formData)
     } catch (error: any) {
       setUploadStatus(`Upload failed: ${error.message}`)
@@ -166,7 +166,7 @@ const Transactions = () => {
     max: "",
   });
   const [searchQuery, setSearchQuery] = useState<string>("");
-  
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -177,16 +177,17 @@ const Transactions = () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
-        .from('transactions')
+        .from('upi_transactions')
         .select('*')
-        .order('transaction_date', { ascending: false });
-        
+      // .order('transaction_date', { ascending: false });
+
       if (error) {
         throw error;
       }
-      
+
       if (data) {
         setTransactions(data);
+        // console.log(data)
         setFilteredTransactions(data);
       }
     } catch (error: any) {
@@ -201,64 +202,92 @@ const Transactions = () => {
   };
 
   // Apply filters
-  const applyFilters = () => {
-    let filtered = [...transactions];
+  // const applyFilters = () => {
+  //   let filtered = [...transactions];
 
-    // Apply date range filter
-    if (dateRange.start) {
-      filtered = filtered.filter(
-        (t) => new Date(t.transaction_date) >= new Date(dateRange.start)
-      );
-    }
-    
-    if (dateRange.end) {
-      filtered = filtered.filter(
-        (t) => new Date(t.transaction_date) <= new Date(dateRange.end)
-      );
-    }
+  //   // Apply date range filter
+  //   if (dateRange.start) {
+  //     filtered = filtered.filter(
+  //       (t) => new Date(t.transaction_date) >= new Date(dateRange.start)
+  //     );
+  //   }
 
-    // Apply category filter
-    if (categoryFilter) {
-      filtered = filtered.filter((t) => t.category === categoryFilter);
-    }
+  //   if (dateRange.end) {
+  //     filtered = filtered.filter(
+  //       (t) => new Date(t.transaction_date) <= new Date(dateRange.end)
+  //     );
+  //   }
 
-    // Apply amount range filter
-    if (amountRange.min) {
-      filtered = filtered.filter(
-        (t) => t.amount >= Number(amountRange.min)
-      );
-    }
-    
-    if (amountRange.max) {
-      filtered = filtered.filter(
-        (t) => t.amount <= Number(amountRange.max)
-      );
-    }
+  //   // Apply category filter
+  //   if (categoryFilter) {
+  //     filtered = filtered.filter((t) => t.category === categoryFilter);
+  //   }
 
-    // Apply search query filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          (t.receiver_id && t.receiver_id.toLowerCase().includes(query)) ||
-          (t.category && t.category.toLowerCase().includes(query)) ||
-          (t.notes && t.notes.toLowerCase().includes(query))
-      );
-    }
+  //   // Apply amount range filter
+  //   if (amountRange.min) {
+  //     filtered = filtered.filter(
+  //       (t) => t.amount >= Number(amountRange.min)
+  //     );
+  //   }
 
-    setFilteredTransactions(filtered);
-  };
+  //   if (amountRange.max) {
+  //     filtered = filtered.filter(
+  //       (t) => t.amount <= Number(amountRange.max)
+  //     );
+  //   }
+
+  //   // Apply search query filter
+  //   if (searchQuery) {
+  //     const query = searchQuery.toLowerCase();
+  //     filtered = filtered.filter(
+  //       (t) =>
+  //         (t.receiver_id && t.receiver_id.toLowerCase().includes(query)) ||
+  //         (t.category && t.category.toLowerCase().includes(query)) ||
+  //         (t.notes && t.notes.toLowerCase().includes(query))
+  //     );
+  //   }
+
+  //   setFilteredTransactions(filtered);
+  // };
 
   // Reset filters
-  const resetFilters = () => {
-    setDateRange({ start: "", end: "" });
-    setCategoryFilter("");
-    setAmountRange({ min: "", max: "" });
-    setSearchQuery("");
-    setFilteredTransactions(transactions);
-  };
+  // const resetFilters = () => {
+  //   setDateRange({ start: "", end: "" });
+  //   setCategoryFilter("");
+  //   setAmountRange({ min: "", max: "" });
+  //   setSearchQuery("");
+  //   setFilteredTransactions(transactions);
+  // };
 
-
+  useEffect(() => {
+    // Randomly select 3-4 transactions to need validation
+    const newNeedsValidation = {};
+    const newValidatedTransactions = {};
+    
+    if (filteredTransactions.length > 0) {
+      // Generate 3-4 unique random indices
+      const numToValidate = Math.min(3 + Math.floor(Math.random()), filteredTransactions.length);
+      const indices = new Set();
+      
+      while (indices.size < numToValidate) {
+        indices.add(Math.floor(Math.random() * filteredTransactions.length));
+      }
+      
+      // Mark those transactions for validation
+      filteredTransactions.forEach((transaction, index) => {
+        const id = transaction.UPI_ID || transaction.id;
+        if (indices.has(index)) {
+          newNeedsValidation[id] = true;
+          newValidatedTransactions[id] = false;
+        } else {
+          newValidatedTransactions[id] = true;
+        }
+      });
+      
+      setNeedsValidation(newNeedsValidation);
+      setValidatedTransactions(newValidatedTransactions);
+    }
+  }, [filteredTransactions]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -269,7 +298,7 @@ const Transactions = () => {
             View, search, and categorize your transactions
           </p>
         </div>
-        <Button 
+        <Button
           onClick={() => setIsAddDialogOpen(true)}
           className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
         >
@@ -286,14 +315,14 @@ const Transactions = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={resetFilters}
+                // onClick={resetFilters}
                 className="border-finLightGray/20 text-finLightGray hover:text-finWhite hover:border-finLightGray/40"
               >
                 Reset
               </Button>
               <Button
                 size="sm"
-                onClick={applyFilters}
+                // onClick={applyFilters}
                 className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90"
               >
                 <Filter className="h-4 w-4 mr-1" /> Apply Filters
@@ -411,58 +440,68 @@ const Transactions = () => {
 
       {/* Transactions Table */}
       <Card className="fin-card overflow-hidden">
-        {isLoading ? (
-          <div className="flex justify-center p-10">
-            <div className="animate-spin h-8 w-8 border-4 border-finOrange border-t-transparent rounded-full" />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-finDarkBlue/50">
+      {isLoading ? (
+        <div className="flex justify-center p-10">
+          <div className="animate-spin h-8 w-8 border-4 border-finOrange border-t-transparent rounded-full" />
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-finDarkBlue/50">
+              <TableRow>
+                <TableHead className="text-finLightGray">Date</TableHead>
+                <TableHead className="text-finLightGray">Recipient</TableHead>
+                <TableHead className="text-finLightGray">Type</TableHead>
+                <TableHead className="text-finLightGray">Amount</TableHead>
+                <TableHead className="text-finLightGray">Category</TableHead>
+                <TableHead className="text-finLightGray w-[80px]">Relevancy Score</TableHead>
+                <TableHead className="text-finLightGray">Validation</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredTransactions.length === 0 ? (
                 <TableRow>
-                  <TableHead className="text-finLightGray">Date</TableHead>
-                  <TableHead className="text-finLightGray">Recipient</TableHead>
-                  <TableHead className="text-finLightGray">Type</TableHead>
-                  <TableHead className="text-finLightGray">Amount</TableHead>
-                  <TableHead className="text-finLightGray">Category</TableHead>
-                  <TableHead className="text-finLightGray w-[80px]">Actions</TableHead>
+                  <TableCell colSpan={7} className="text-center py-8 text-finLightGray">
+                    No transactions found matching your filters.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTransactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-center py-8 text-finLightGray"
+              ) : (
+                filteredTransactions.map((transaction) => {
+                  const transactionId = transaction.UPI_ID || transaction.id;
+                  const requiresValidation = needsValidation[transactionId];
+                  const isValidated = validatedTransactions[transactionId];
+                  
+                  return (
+                    <TableRow 
+                      key={transactionId}
+                      className={requiresValidation && !isValidated ? "bg-red-900/10" : ""}
                     >
-                      No transactions found matching your filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
                       <TableCell>
-                        {new Date(transaction.transaction_date).toLocaleDateString()}
+                        {transaction.Date} {transaction.Timestamp ? `(${transaction.Timestamp})` : ""}
                       </TableCell>
-                      <TableCell>{transaction.receiver_id || "Unknown"}</TableCell>
+                      <TableCell>
+                        {transaction.To_Name
+                          ? `${transaction.To_Name} (${transaction.To_Upi_Id}@${transaction.To_Bank})`
+                          : transaction.receiver_id || "Unknown"}
+                      </TableCell>
                       <TableCell>
                         <span
                           className={`inline-block px-2 py-1 rounded-full text-xs ${
-                            transaction.type === "credit"
+                            transaction.Credit
                               ? "bg-green-900/20 text-green-500"
                               : "bg-finOrange/10 text-finOrange"
                           }`}
                         >
-                          {transaction.type}
+                          {transaction.Credit ? "credit" : "debit"}
                         </span>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {formatCurrency(transaction.amount)}
+                        ₹{transaction.Credit || transaction.Debit || "0.00"}
                       </TableCell>
                       <TableCell>
-                        {transaction.category ? (
+                        {transaction.Category ? (
                           <span className="inline-block px-2 py-1 bg-finDarkBlue rounded-full text-xs">
-                            {transaction.category}
+                            {transaction.Category}
                           </span>
                         ) : (
                           <span className="flex items-center text-red-500">
@@ -470,16 +509,33 @@ const Transactions = () => {
                           </span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <span className="text-finLightGray">{transaction.Score?.toFixed(2)}%</span>
+                      </TableCell>
+                      <TableCell>
+                        {requiresValidation && !isValidated ? (
+                          <button
+                            onClick={() => handleValidate(transactionId)}
+                            className="px-2 py-1 bg-finDarkBlue hover:bg-finDarkBlue/70 text-finLightGray rounded-md text-xs flex items-center"
+                          >
+                            <AlertCircle className="h-4 w-4 mr-1 text-red-500" /> Validate
+                          </button>
+                        ) : (
+                          <div className="flex items-center text-green-500">
+                            <CheckCircle className="h-4 w-4 mr-1" /> Validated
+                          </div>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Card>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </Card>
 
-  
       {/* Add Transaction Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
         if (!open) {
@@ -489,144 +545,144 @@ const Transactions = () => {
         }
         setIsAddDialogOpen(open)
       }}>
-      <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite sm:max-w-md md:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-xl flex items-center gap-2">
-            <FileUp className="h-5 w-5 text-finOrange" />
-            Add Transaction
-          </DialogTitle>
-          <DialogDescription className="text-finLightGray">
-            Upload a PDF statement to record a new transaction
-          </DialogDescription>
-        </DialogHeader>
+        <DialogContent className="bg-finDarkBlue border border-finOrange/20 text-finWhite sm:max-w-md md:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <FileUp className="h-5 w-5 text-finOrange" />
+              Add Transaction
+            </DialogTitle>
+            <DialogDescription className="text-finLightGray">
+              Upload a PDF statement to record a new transaction
+            </DialogDescription>
+          </DialogHeader>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            addPdf()
-          }}
-          className="space-y-6"
-        >
-          <div 
-            className={`relative border-2 border-dashed rounded-lg p-8 transition-all duration-200 ${isDragging ? 'border-finOrange bg-finOrange/10' : pdfFile ? 'border-green-500/50 bg-green-500/5' : 'border-finLightGray/30 hover:border-finLightGray/50'}`}
-            onDragOver={(e) => {
+          <form
+            onSubmit={(e) => {
               e.preventDefault()
-              setIsDragging(true)
+              addPdf()
             }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              setIsDragging(false)
-              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                const file = e.dataTransfer.files[0]
-                if (file.type === 'application/pdf') {
-                  setPdfFile(file)
-                  setUploadStatus('')
-                } else {
-                  setUploadStatus('Please select a PDF file.')
-                }
-              }
-            }}
+            className="space-y-6"
           >
-            {!pdfFile ? (
-              <div className="flex flex-col items-center justify-center space-y-4 py-4">
-                <div className="p-4 bg-finOrange/20 rounded-full">
-                  <Upload className="h-8 w-8 text-finOrange" />
-                </div>
-                <div className="text-center space-y-2">
-                  <h3 className="text-finWhite font-medium">Drag and drop your PDF file</h3>
-                  <p className="text-finLightGray text-sm">or click to browse files</p>
-                </div>
-                <Label 
-                  htmlFor="pdf-upload" 
-                  className="cursor-pointer bg-finOrange/20 hover:bg-finOrange/30 text-finOrange px-4 py-2 rounded-md font-medium flex items-center gap-2 transition-colors"
-                >
-                  <FileText className="h-4 w-4" />
-                  Select PDF
-                </Label>
-                <Input
-                  id="pdf-upload"
-                  type="file"
-                  accept="application/pdf"
-                  className="sr-only"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setPdfFile(e.target.files[0])
-                      setUploadStatus('')
-                    }
-                  }}
-                />
-                <p className="text-xs text-finLightGray">Supported format: PDF</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center space-y-4 py-4">
-                <div className="p-3 bg-green-500/20 rounded-full">
-                  <Check className="h-6 w-6 text-green-500" />
-                </div>
-                <div className="text-center space-y-1">
-                  <h3 className="text-finWhite font-medium">File ready for upload</h3>
-                  <p className="text-finLightGray text-sm flex items-center justify-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    {pdfFile.name}
-                  </p>
-                </div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="text-red-400 border-red-400/30 hover:bg-red-400/10 hover:text-red-300 flex items-center gap-1"
-                  onClick={() => {
-                    setPdfFile(null)
+            <div
+              className={`relative border-2 border-dashed rounded-lg p-8 transition-all duration-200 ${isDragging ? 'border-finOrange bg-finOrange/10' : pdfFile ? 'border-green-500/50 bg-green-500/5' : 'border-finLightGray/30 hover:border-finLightGray/50'}`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  const file = e.dataTransfer.files[0]
+                  if (file.type === 'application/pdf') {
+                    setPdfFile(file)
                     setUploadStatus('')
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                  Remove
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          {uploadStatus && (
-            <div className="space-y-2">
-              <p className={`text-sm ${uploadStatus.includes('successful') ? 'text-green-400' : uploadStatus === 'Uploading...' ? 'text-blue-400' : 'text-yellow-300'} flex items-center gap-2`}>
-                {uploadStatus.includes('successful') ? <Check className="h-4 w-4" /> : 
-                 uploadStatus === 'Uploading...' ? <FileUp className="h-4 w-4 animate-pulse" /> : 
-                 <AlertTriangle className="h-4 w-4" />}
-                {uploadStatus}
-              </p>
-              
-              {uploadProgress > 0 && uploadProgress < 100 && (
-                <div className="w-full bg-finLightGray/20 rounded-full h-2.5 overflow-hidden">
-                  <div 
-                    className="bg-finOrange h-2.5 rounded-full transition-all duration-300" 
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
+                  } else {
+                    setUploadStatus('Please select a PDF file.')
+                  }
+                }
+              }}
+            >
+              {!pdfFile ? (
+                <div className="flex flex-col items-center justify-center space-y-4 py-4">
+                  <div className="p-4 bg-finOrange/20 rounded-full">
+                    <Upload className="h-8 w-8 text-finOrange" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-finWhite font-medium">Drag and drop your PDF file</h3>
+                    <p className="text-finLightGray text-sm">or click to browse files</p>
+                  </div>
+                  <Label
+                    htmlFor="pdf-upload"
+                    className="cursor-pointer bg-finOrange/20 hover:bg-finOrange/30 text-finOrange px-4 py-2 rounded-md font-medium flex items-center gap-2 transition-colors"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Select PDF
+                  </Label>
+                  <Input
+                    id="pdf-upload"
+                    type="file"
+                    accept="application/pdf"
+                    className="sr-only"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setPdfFile(e.target.files[0])
+                        setUploadStatus('')
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-finLightGray">Supported format: PDF</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center space-y-4 py-4">
+                  <div className="p-3 bg-green-500/20 rounded-full">
+                    <Check className="h-6 w-6 text-green-500" />
+                  </div>
+                  <div className="text-center space-y-1">
+                    <h3 className="text-finWhite font-medium">File ready for upload</h3>
+                    <p className="text-finLightGray text-sm flex items-center justify-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      {pdfFile.name}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-red-400 border-red-400/30 hover:bg-red-400/10 hover:text-red-300 flex items-center gap-1"
+                    onClick={() => {
+                      setPdfFile(null)
+                      setUploadStatus('')
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                    Remove
+                  </Button>
                 </div>
               )}
             </div>
-          )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAddDialogOpen(false)}
-              className="border-finLightGray/30 text-finLightGray hover:text-finWhite hover:border-finLightGray/50"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90 flex items-center gap-2"
-              disabled={!pdfFile || uploadStatus === 'Uploading...'}
-            >
-              <FileUp className="h-4 w-4" />
-              Upload PDF
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            {uploadStatus && (
+              <div className="space-y-2">
+                <p className={`text-sm ${uploadStatus.includes('successful') ? 'text-green-400' : uploadStatus === 'Uploading...' ? 'text-blue-400' : 'text-yellow-300'} flex items-center gap-2`}>
+                  {uploadStatus.includes('successful') ? <Check className="h-4 w-4" /> :
+                    uploadStatus === 'Uploading...' ? <FileUp className="h-4 w-4 animate-pulse" /> :
+                      <AlertTriangle className="h-4 w-4" />}
+                  {uploadStatus}
+                </p>
+
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="w-full bg-finLightGray/20 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-finOrange h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddDialogOpen(false)}
+                className="border-finLightGray/30 text-finLightGray hover:text-finWhite hover:border-finLightGray/50"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-finOrange text-finDarkBlue hover:bg-finOrange/90 flex items-center gap-2"
+                disabled={!pdfFile || uploadStatus === 'Uploading...'}
+              >
+                <FileUp className="h-4 w-4" />
+                Upload PDF
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

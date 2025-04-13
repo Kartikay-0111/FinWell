@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +19,9 @@ import {
 import { ArrowDown, ArrowUp, Banknote, Calendar, CreditCard, Landmark, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { suggestionsPrompt } from "@/lib/utils";
+import {useGemini} from '../hooks/useGemini';
+import PremiumInsightsDisplay from "@/components/insightsCard";
 
 type Transaction = {
   id: string;
@@ -172,9 +174,10 @@ const Dashboard = () => {
   const [incomeTotal, setIncomeTotal] = useState(0);
   const [expenseTotal, setExpenseTotal] = useState(0);
   const [savingsTotal, setSavingsTotal] = useState(0);
+  const [insights, setInsights] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
   const { toast } = useToast();
+  const { sendPrompt } = useGemini();
   
   useEffect(() => {
     fetchTransactions();
@@ -207,6 +210,23 @@ const Dashboard = () => {
       
       if (data) {
         setTransactions(data);
+
+        const prompt = suggestionsPrompt(transactions);
+        
+        try {
+          const insights = await sendPrompt(prompt);
+          // console.log(insights);
+          const insightsArray = insights
+        .split('\n')
+        .map(line => line.replace(/^\*+/, '').trim()) // remove asterisks and trim
+        .filter(line => line.length > 0); // remove empty lines
+        setInsights(insightsArray);
+        console.log(insightsArray);
+
+        } catch (error) {
+          console.error("Error getting insights:", error);
+          setInsights([]);
+        }
             // Get unique user IDs from transactions
         const userIds = [...new Set(data.map(t => t.user_id).filter(Boolean))];
 
@@ -254,7 +274,7 @@ const Dashboard = () => {
       setIsLoading(false);
     }
   };
-  
+
   // Prepare data for pie chart - spending by category
   const categoryData = transactions
     .filter(t => t.type === "debit" && t.category)
@@ -324,7 +344,10 @@ const Dashboard = () => {
               description="Last 30 days"
             />
           </div>
-          
+          {/* Insights Section */}
+          <div className="fin-card p-4 mt-6">
+            <PremiumInsightsDisplay insights={insights} />
+          </div>
           {/* Charts and Timeline */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Charts Section */}
