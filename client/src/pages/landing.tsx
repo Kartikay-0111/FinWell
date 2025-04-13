@@ -99,23 +99,33 @@ export default function LandingPage() {
             <div className="bg-primary w-10 h-10 rounded-lg flex items-center justify-center mr-3">
               <Shield className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold">FinTrackr</span>
+            <a href="/landing">
+            <span className="text-xl font-bold">FinWell</span></a>
           </div>
           <nav className="hidden md:flex items-center space-x-8">
             <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
             <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">How it Works</a>
             <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">Testimonials</a>
             <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
-          </nav>
+            </nav>
           <div className="flex items-center space-x-4">
-            <button className="text-muted-foreground hover:text-foreground transition-colors px-4 py-2">Login</button>
-            <Button primary>Get Started</Button>
+            <button 
+              className="text-muted-foreground hover:text-foreground transition-colors px-4 py-2"
+              onClick={() => window.location.href = '/login'}
+            >
+              Login
+            </button>
+            <Button 
+              primary
+            >
+              Get Started
+            </Button>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="relative pt-20 pb-32 overflow-hidden">
+      <section className="relative pt-4 pb-32 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background/20 z-0"></div>
         <div className="absolute top-40 right-10 w-96 h-96 bg-primary/5 rounded-full filter blur-3xl"></div>
         <div className="absolute bottom-20 left-10 w-72 h-72 bg-primary/10 rounded-full filter blur-3xl"></div>
