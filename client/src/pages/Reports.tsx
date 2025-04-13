@@ -34,6 +34,7 @@ import { formatCurrency } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import TopMerchantsExample from "@/examples/TopMerchantsExample";
 
 // Define the interface for report data
 interface ReportData {
@@ -318,7 +319,7 @@ const Reports = () => {
           </CardContent>
         </Card>
       </div>
-
+      <TopMerchantsExample />
       {/* Category Comparison Chart */}
       <Card className="fin-card">
         <CardHeader className="pb-2">

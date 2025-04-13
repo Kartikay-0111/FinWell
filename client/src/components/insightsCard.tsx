@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, TrendingUp, Zap, ArrowRight, BarChart } from 'lucide-react';
 
-export default function PremiumInsightsDisplay() {
-  const insights = [
-    "Wow, ₹0 spent across the board! Have you achieved peak minimalism, or just forgotten to link your accounts?",
-    "Zero income and zero spending... Are you a financial ghost or just *really* good at pretending money doesn't exist?",
-    "With a grand total of 0 transactions, your bank account must be feeling awfully lonely."
-  ];
+export default function PremiumInsightsDisplay({insights}) {
+  // const insights = [
+  //   "Wow, ₹0 spent across the board! Have you achieved peak minimalism, or just forgotten to link your accounts?",
+  //   "Zero income and zero spending... Are you a financial ghost or just *really* good at pretending money doesn't exist?",
+  //   "With a grand total of 0 transactions, your bank account must be feeling awfully lonely."
+  // ];
   const icons = [Sparkles, TrendingUp, Zap];
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
