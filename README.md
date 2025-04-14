@@ -1,6 +1,6 @@
-# FinWell
+# FinWell - Not Just Tracking. Transforming.
 
-**FinWell** is a modern, AI-powered financial management platform designed to help users track, analyze, and optimize their spending habits in a smart, interactive, and even witty way. With seamless PDF parsing, AI-generated insights, goal tracking, and gamification — FinWell makes managing money feel less like a chore and more like a win.
+**FinWell** is a modern, AI-powered financial management platform designed to provide insights to the user by analyzing their transaction history and thus help users track, analyze, and optimize their spending habits in a smart, interactive way. With seamless PDF parsing, AI-generated insights, goal tracking — FinWell makes managing money feel less like a chore and more like a win.
 
 ---
 
@@ -11,8 +11,7 @@
 - **Transaction Management**: Upload bank statements (PDF) or manually input transactions. Auto-categorized and stored securely.
 - **Goal Setting**: Create financial goals (e.g. emergency fund, vacation, rent) with target timelines and real-time progress.
 - **Reports & Visuals**: Detailed breakdowns, trend detection, category-wise charts, and daily expense timelines.
-- **Gamification**: Earn badges like "Budget Ninja" and complete fun challenges like "No Spend Weekend" to stay motivated.
-- **Security First**: Bank-level security and Supabase-authenticated access for protecting sensitive data.
+- **Security First**: Supabase-authenticated access for protecting sensitive data.
 
 ---
 
@@ -62,57 +61,6 @@ $ cd ../server && npm start
 
 # Access the app at http://localhost:3000
 ```
-
----
-
-## 🧱 Project Structure
-
-```
-finwell/
-├── client/                # Frontend code
-│   ├── src/
-│   │   ├── components/    # UI components (Dialog, Table, Card, etc.)
-│   │   ├── pages/         # Dashboard, Goals, Insights, Reports
-│   │   ├── hooks/         # Custom React hooks (useAuth, useGemini)
-│   │   ├── lib/           # Supabase, Gemini config, utils
-│   │   ├── App.tsx        # Root app component
-│   ├── tailwind.config.ts # Styling configuration
-│   ├── vite.config.ts     # Vite bundler config
-│   └── index.html         # HTML entry
-├── server/                # Backend Flask API
-│   ├── app.py             # PDF upload & parser route
-│   ├── .env               # Backend config
-└── README.md              # Docs
-```
-
----
-
-## 🔍 Key Features in Detail
-
-### 📊 Dashboard
-- Shows summary of income, expense, savings.
-- Daily spend graph, pie chart by category.
-- Insight cards powered by Gemini.
-
-### 💰 Transactions
-- Upload PDFs or manually add UPI screenshots.
-- AI assigns categories + relevance score.
-- Filter, search, and edit categories easily.
-
-### 🎯 Goals
-- Track goals like Emergency Fund, Rent, Travel.
-- Reverse calculate savings target.
-- Set reminders for due dates (e.g. bill in 3 days).
-
-### 📈 Reports
-- Monthly insights, trend comparisons.
-- Gemini-generated alerts: "You spent 3x on food this week."
-- Suggestions: "Cut Swiggy by 30% → save ₹5,400/year."
-
-### 🔹 Gamification
-- Badges: Budget Ninja, ₹10k Saved, etc.
-- Challenges: No Spend Day, Smart Save Week
-
 ---
 
 ## 💠 Development Scripts
@@ -127,12 +75,6 @@ finwell/
 
 ---
 
-## 🩼 Linting & Styling
-- ESLint configured for TypeScript + React
-- TailwindCSS for utility-first design
-
----
-
 ## 🤝 Contributing
 
 Contributions are welcome! Follow the steps:
@@ -140,12 +82,6 @@ Contributions are welcome! Follow the steps:
 2. Create a feature branch
 3. Push your changes
 4. Open a Pull Request ✨
-
----
-
-## 📍 License
-
-MIT License – see `LICENSE` file.
 
 ---
 
@@ -157,3 +93,4 @@ MIT License – see `LICENSE` file.
 - [TailwindCSS](https://tailwindcss.com) for design system
 - [Shadcn/ui](https://ui.shadcn.com) for polished React components
 
+Built at AIRAVAT Hackathon by IEEE SPIT by team **MindFlairs**
